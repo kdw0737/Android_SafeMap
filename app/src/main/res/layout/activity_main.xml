@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<!-- 검정색 배경을 가지는 LinearLayout -->
+<LinearLayout
+    android:id="@+id/top_banner"
+    android:layout_width="match_parent"
+    android:layout_height="210dp"
+    android:background="#000000"
+    android:gravity="center_vertical"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_margin="8dp">
+
+        <TextView
+            android:id="@+id/tv_start"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="출발지:"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <EditText
+            android:id="@+id/et_start"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="출발지 입력"
+            android:padding="12dp"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btn_start_search"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="검색"
+            android:onClick="searchStartLocation" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_margin="8dp">
+
+        <TextView
+            android:id="@+id/tv_destination"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="도착지:"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <EditText
+            android:id="@+id/et_destination"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="도착지 입력"
+            android:padding="12dp"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btn_destination_search"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="검색"
+            android:onClick="searchDestinationLocation" />
+
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_margin="8dp">
+
+        <Button
+            android:id="@+id/btn_search_route"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:onClick="searchRoute"
+            android:text="경로 탐색" />
+    </LinearLayout>
+
+</LinearLayout>
+
+<FrameLayout
+android:id="@+id/frameLayoutTmap"
+android:layout_width="match_parent"
+android:layout_height="match_parent"
+android:layout_below="@id/top_banner">
+
+<Button
+    android:id="@+id/my_location_button"
+    android:layout_width="48dp"
+    android:layout_height="48dp"
+    android:layout_marginStart="16dp"
+    android:layout_marginTop="16dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginBottom="16dp"
+    android:layout_gravity="bottom|start"
+    android:background="@drawable/circle_button"
+    android:drawableLeft="@drawable/ic_my_location"
+    android:drawablePadding="8dp"
+    android:text="" />
+    <com.skt.Tmap.TMapView
+        android:id="@+id/mapView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+</FrameLayout>
+
+</RelativeLayout>
