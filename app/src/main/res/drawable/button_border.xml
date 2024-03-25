@@ -1,0 +1,24 @@
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 선택되지 않은 상태 -->
+    <item android:state_selected="false">
+        <shape>
+            <!-- 버튼의 배경 설정 (기본 색상, 보라색으로 설정) -->
+            <solid android:color="@android:color/transparent" />
+            <!-- 버튼의 테두리 속성 설정 -->
+            <stroke
+                android:width="2dp"
+                android:color="@android:color/transparent" /> <!-- 테두리 색상은 투명으로 설정 -->
+        </shape>
+    </item>
+    <!-- 선택된 상태 -->
+    <item android:state_selected="true">
+        <shape>
+            <!-- 버튼의 배경 설정 (기본 색상, 보라색으로 설정) -->
+            <solid android:color="@android:color/transparent" />
+            <!-- 버튼의 테두리 속성 설정 -->
+            <stroke
+                android:width="2dp"
+                android:color="#FF0000" /> <!-- 테두리 색상을 빨간색으로 설정 -->
+        </shape>
+    </item>
+</selector>

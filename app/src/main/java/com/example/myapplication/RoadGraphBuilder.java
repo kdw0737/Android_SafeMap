@@ -49,12 +49,13 @@ public class RoadGraphBuilder {
                     String nodeId = jsonObject.optString("NODE_ID");
                     double latitude = extractLatitudeFromWKT(jsonObject.optString("NODE_WKT"));
                     double longitude = extractLongitudeFromWKT(jsonObject.optString("NODE_WKT"));
+
                     // 노드 정보를 그래프에 추가
                     graph.addNode(nodeId, latitude, longitude);
-                } else if (category.equals("LINK")) {
+                }  else if (category.equals("LINK")) {
                     String edgeId = jsonObject.optString("LINK_ID");
-                    String startNodeId = jsonObject.optString("START_NODE_ID");
-                    String endNodeId = jsonObject.optString("END_NODE_ID");
+                    String startNodeId = removeDecimal(jsonObject.optString("START_NODE_ID")); // 소수점 제거
+                    String endNodeId = removeDecimal(jsonObject.optString("END_NODE_ID")); // 소수점 제거
                     double length = jsonObject.optDouble("LENGTH");
                     String linkWKT = jsonObject.optString("LINK_WKT");
 
@@ -105,7 +106,7 @@ public class RoadGraphBuilder {
 
     public static class Graph {
         public Map<String, List<Edge>> adjacencyList;
-        private Map<String, Node> nodes;
+        public Map<String, Node> nodes;
         private Map<String, List<Node>> edgeCoordinatesMap; // 엣지의 좌표 맵
 
         public Graph() {
@@ -119,12 +120,12 @@ public class RoadGraphBuilder {
             String endNodeId = edge.getEndNodeId();
 
             if (!adjacencyList.containsKey(startNodeId)) {
-                adjacencyList.put(startNodeId, new ArrayList<>());
+                adjacencyList.put(startNodeId, new ArrayList<Edge>());
             }
             adjacencyList.get(startNodeId).add(edge);
 
             if (!adjacencyList.containsKey(endNodeId)) {
-                adjacencyList.put(endNodeId, new ArrayList<>());
+                adjacencyList.put(endNodeId, new ArrayList<Edge>());
             }
             adjacencyList.get(endNodeId).add(edge);
         }
@@ -162,33 +163,6 @@ public class RoadGraphBuilder {
         public List<Node> getEdgeCoordinates(String edgeId) {
             return edgeCoordinatesMap.get(edgeId);
         }
-
-        public List<Node> getAdjacentNodes(String nodeId) {
-            List<Node> adjacentNodes = new ArrayList<>();
-            List<Edge> edges = adjacencyList.get(nodeId);
-            for (int i = 0; i < edges.size(); i++) {
-                System.out.println("edges = " + edges.get(i));
-            }
-            if (edges != null) {
-                for (Edge edge : edges) {
-                    String adjacentNodeId;
-                    if (edge.getStartNodeId().equals(nodeId)) {
-                        adjacentNodeId = edge.getEndNodeId();
-                    } else {
-                        adjacentNodeId = edge.getStartNodeId();
-                    }
-                    Node adjacentNode = nodes.get(adjacentNodeId);
-                    if (adjacentNode != null) {
-                        adjacentNodes.add(adjacentNode);
-                    }
-                }
-            } else {
-                Log.d(TAG, "edges가 null값입니다.");
-            }
-
-            return adjacentNodes;
-        }
-
     }
 
     public static class Node {
@@ -271,5 +245,16 @@ public class RoadGraphBuilder {
         dist = Math.toDegrees(dist);
         dist = dist * 60 * 1.1515 * 1.609344 * 1000; // km to meters
         return dist;
+    }
+
+    // 소수점 제거 메서드
+    private String removeDecimal(String nodeId) {
+        // 소수점 이후의 문자열을 제거하여 소수점을 제거합니다.
+        int dotIndex = nodeId.indexOf('.');
+        if (dotIndex != -1) {
+            return nodeId.substring(0, dotIndex);
+        } else {
+            return nodeId;
+        }
     }
 }

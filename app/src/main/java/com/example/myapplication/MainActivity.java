@@ -3,10 +3,13 @@ package com.example.myapplication;
 import static com.skt.Tmap.MapUtils.getDistance;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
@@ -17,6 +20,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -30,6 +34,7 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 import com.skt.Tmap.TMapData;
+import com.skt.Tmap.TMapInfo;
 import com.skt.Tmap.TMapMarkerItem;
 import com.skt.Tmap.TMapPoint;
 import com.skt.Tmap.TMapPolyLine;
@@ -43,6 +48,7 @@ import org.jgrapht.graph.SimpleWeightedGraph;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
     private TMapView tMapView;
@@ -51,12 +57,15 @@ public class MainActivity extends AppCompatActivity {
     private Button btnStartSearch;
     private Button btnDestinationSearch;
     private Button btnSearchRoute;
+    private Button shortestRouteButton;
+    private Button safeRouteButton;
     private TMapData tMapData;
     private double startLng;
     private double startLat;
     private double endLng;
     private double endLat;
-    private TMapPolyLine tMapPolyLine;
+    private TMapMarkerItem startM;
+    private TMapMarkerItem endM;
     private boolean isFirstLocation = true; // 최초 위치 플래그
     private static final String TAG = "MainActivity";
     private RoadGraphBuilder.Graph graph;
@@ -118,9 +127,6 @@ public class MainActivity extends AppCompatActivity {
 
         //Map을 이용해서 그래프 생성
         RoadGraphBuilder roadGraphBuilder = new RoadGraphBuilder();
-
-        //Astar
-        aStar = new AStar();
 
         // JSON 파일 읽기
         String json = roadGraphBuilder.loadJSONFromAsset(this, "sungbook_road.json");
@@ -228,7 +234,7 @@ public class MainActivity extends AppCompatActivity {
         // 검색 결과를 담을 리스트 생성
         ArrayList<TMapPOIItem> poiItems = new ArrayList<>();
 
-        //출발지 검색버튼을 눌렀을때
+        // 출발지 검색버튼을 눌렀을 때
         btnStartSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -240,42 +246,61 @@ public class MainActivity extends AppCompatActivity {
                 // TMapPOIItem 을 이용하여 검색어(keyword)를 포함한 장소 검색
                 tMapData.findTitlePOI(keyword, new TMapData.FindTitlePOIListenerCallback() {
                     @Override
-                    public void onFindTitlePOI(ArrayList<TMapPOIItem> arrayList) {
-                        // 검색 결과가 있다면 poiItems 에 추가
-                        if (arrayList != null) {
-                            poiItems.addAll(arrayList);
-                        }
+                    public void onFindTitlePOI(final ArrayList<TMapPOIItem> arrayList) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                // 검색 결과가 없을 경우
+                                if (arrayList == null || arrayList.isEmpty()) {
+                                    // AlertDialog를 통해 메시지를 표시하고 확인 버튼을 누르면 다이얼로그를 닫습니다.
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                                    builder.setMessage("검색 결과가 없습니다.")
+                                            .setCancelable(false)
+                                            .setPositiveButton("확인", new DialogInterface.OnClickListener() {
+                                                public void onClick(DialogInterface dialog, int id) {
+                                                    dialog.dismiss(); // 다이얼로그를 닫습니다.
+                                                }
+                                            });
+                                    AlertDialog alert = builder.create();
+                                    alert.show();
+                                } else {
+                                    // 검색 결과가 있다면 poiItems 에 추가
+                                    poiItems.addAll(arrayList);
 
-                        // 검색 결과를 지도에 마커로 표시
-                        for (int i = 0; i < poiItems.size(); i++) {
-                            TMapPOIItem item = poiItems.get(i);
-                            TMapPoint point = item.getPOIPoint();
-                            TMapMarkerItem markerItem = new TMapMarkerItem();
+                                    // 검색 결과를 지도에 마커로 표시
+                                    for (int i = 0; i < poiItems.size(); i++) {
+                                        TMapPOIItem item = poiItems.get(i);
+                                        TMapPoint point = item.getPOIPoint();
+                                        TMapMarkerItem markerItem = new TMapMarkerItem();
 
-                            markerItem.setTMapPoint(point);
-                            markerItem.setName(item.getPOIName());
-                            markerItem.setVisible(TMapMarkerItem.VISIBLE);
+                                        markerItem.setTMapPoint(point);
+                                        markerItem.setName(item.getPOIName());
+                                        markerItem.setVisible(TMapMarkerItem.VISIBLE);
 
-                            Bitmap bitmap = markerItem.getIcon(); // 내장된 마커 아이콘을 가져옵니다.
-                            markerItem.setIcon(bitmap);
+                                        Bitmap bitmap = markerItem.getIcon(); // 내장된 마커 아이콘을 가져옵니다.
+                                        markerItem.setIcon(bitmap);
 
-                            setBalloonView(markerItem, item.getPOIName(), item.getPOIAddress(), etStart, true); // 마커에 풍선뷰 설정
+                                        setBalloonView(markerItem, item.getPOIName(), item.getPOIAddress(), etStart, true); // 마커에 풍선뷰 설정
 
-                            tMapView.addMarkerItem(item.getPOIName(), markerItem);
-                        }
+                                        tMapView.addMarkerItem(item.getPOIName(), markerItem);
+                                    }
 
-                        // 검색 결과 중 첫 번째 장소로 지도 화면을 이동시킵니다.
-                        if (poiItems.size() > 0) {
-                            TMapPOIItem firstItem = poiItems.get(0);
-                            TMapPoint firstPoint = firstItem.getPOIPoint();
-                            tMapView.setCenterPoint(firstPoint.getLongitude(), firstPoint.getLatitude());
-                        }
+                                    // 검색 결과 중 첫 번째 장소로 지도 화면을 이동시킵니다.
+                                    if (poiItems.size() > 0) {
+                                        TMapPOIItem firstItem = poiItems.get(0);
+                                        TMapPoint firstPoint = firstItem.getPOIPoint();
+                                        tMapView.setCenterPoint(firstPoint.getLongitude(), firstPoint.getLatitude());
+                                    }
+                                }
+                            }
+                        });
                     }
                 });
             }
         });
 
-        //도착지 검색버튼을 눌렀을때
+
+        // 도착지 검색버튼을 눌렀을 때
         btnDestinationSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -288,36 +313,54 @@ public class MainActivity extends AppCompatActivity {
                 // TMapPOIItem 을 이용하여 검색어(keyword)를 포함한 장소 검색
                 tMapData.findTitlePOI(keyword, new TMapData.FindTitlePOIListenerCallback() {
                     @Override
-                    public void onFindTitlePOI(ArrayList<TMapPOIItem> arrayList) {
-                        // 검색 결과가 있다면 poiItems 에 추가
-                        if (arrayList != null) {
-                            poiItems.addAll(arrayList);
-                        }
+                    public void onFindTitlePOI(final ArrayList<TMapPOIItem> arrayList) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                // 검색 결과가 없는 경우
+                                if (arrayList == null || arrayList.isEmpty()) {
+                                    // AlertDialog를 통해 메시지를 표시하고 확인 버튼을 누르면 다이얼로그를 닫습니다.
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                                    builder.setMessage("검색 결과가 없습니다.")
+                                            .setCancelable(false)
+                                            .setPositiveButton("확인", new DialogInterface.OnClickListener() {
+                                                public void onClick(DialogInterface dialog, int id) {
+                                                    dialog.dismiss(); // 다이얼로그를 닫습니다.
+                                                }
+                                            });
+                                    AlertDialog alert = builder.create();
+                                    alert.show();
+                                } else {
+                                    // 검색 결과가 있다면 poiItems 에 추가
+                                    poiItems.addAll(arrayList);
 
-                        // 검색 결과를 지도에 마커로 표시
-                        for (int i = 0; i < poiItems.size(); i++) {
-                            TMapPOIItem item = poiItems.get(i);
-                            TMapPoint point = item.getPOIPoint();
-                            TMapMarkerItem markerItem = new TMapMarkerItem();
+                                    // 검색 결과를 지도에 마커로 표시
+                                    for (int i = 0; i < poiItems.size(); i++) {
+                                        TMapPOIItem item = poiItems.get(i);
+                                        TMapPoint point = item.getPOIPoint();
+                                        TMapMarkerItem markerItem = new TMapMarkerItem();
 
-                            markerItem.setTMapPoint(point);
-                            markerItem.setName(item.getPOIName());
-                            markerItem.setVisible(TMapMarkerItem.VISIBLE);
+                                        markerItem.setTMapPoint(point);
+                                        markerItem.setName(item.getPOIName());
+                                        markerItem.setVisible(TMapMarkerItem.VISIBLE);
 
-                            Bitmap bitmap = markerItem.getIcon(); // 내장된 마커 아이콘을 가져옵니다.
-                            markerItem.setIcon(bitmap);
+                                        Bitmap bitmap = markerItem.getIcon(); // 내장된 마커 아이콘을 가져옵니다.
+                                        markerItem.setIcon(bitmap);
 
-                            setBalloonView(markerItem, item.getPOIName(), item.getPOIAddress(), etDestination, false); // 마커에 풍선뷰 설정
+                                        setBalloonView(markerItem, item.getPOIName(), item.getPOIAddress(), etDestination, false); // 마커에 풍선뷰 설정
 
-                            tMapView.addMarkerItem(item.getPOIName(), markerItem);
-                        }
+                                        tMapView.addMarkerItem(item.getPOIName(), markerItem);
+                                    }
 
-                        // 검색 결과 중 첫 번째 장소로 지도 화면을 이동시킵니다.
-                        if (poiItems.size() > 0) {
-                            TMapPOIItem firstItem = poiItems.get(0);
-                            TMapPoint firstPoint = firstItem.getPOIPoint();
-                            tMapView.setCenterPoint(firstPoint.getLongitude(), firstPoint.getLatitude());
-                        }
+                                    // 검색 결과 중 첫 번째 장소로 지도 화면을 이동시킵니다.
+                                    if (poiItems.size() > 0) {
+                                        TMapPOIItem firstItem = poiItems.get(0);
+                                        TMapPoint firstPoint = firstItem.getPOIPoint();
+                                        tMapView.setCenterPoint(firstPoint.getLongitude(), firstPoint.getLatitude());
+                                    }
+                                }
+                            }
+                        });
                     }
                 });
             }
@@ -325,126 +368,186 @@ public class MainActivity extends AppCompatActivity {
 
         btnSearchRoute = findViewById(R.id.btn_search_route);
 
-        //경로탐색 검색버튼을 눌렀을 때
+        // 최단경로 버튼 초기화
+        shortestRouteButton = findViewById(R.id.btn_shortest_route);
+
+        //안전경로 버튼 초기화
+        safeRouteButton = findViewById(R.id.btn_safety_route);
+
+        // 경로탐색 검색버튼을 눌렀을 때
         btnSearchRoute.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                // 경로 탐색 버튼 클릭 시 안전경로 및 최단경로 버튼을 보이도록 설정
+                LinearLayout bottomButtonsLayout = findViewById(R.id.bottom_buttons_layout);
+                bottomButtonsLayout.setVisibility(View.VISIBLE);
+
+                // 안전경로 버튼을 선택한 상태로 설정
+                Button safetyRouteButton = findViewById(R.id.btn_safety_route);
+                safetyRouteButton.setSelected(true);
+
+                // 최단경로 버튼은 선택되지 않은 상태로 설정
+                Button shortestRouteButton = findViewById(R.id.btn_shortest_route);
+                shortestRouteButton.setSelected(false);
+
+                // 기존 폴리라인 삭제
+                tMapView.removeAllTMapPolyLine();
+
                 // 기존 마커 삭제
                 tMapView.removeAllMarkerItem();
-
-                /*// 경로 탐색 코드
-                TMapPoint startPoint = new TMapPoint(startLat, startLng);
-                TMapPoint endPoint = new TMapPoint(endLat, endLng);
-*/
-                TMapData tMapData = new TMapData();
 
                 // 출발지와 도착지에 가장 가까운 노드의 ID를 찾음
                 String startNodeId = roadGraphBuilder.findClosestNodeId(graph, startLat, startLng);
                 String targetNodeId = roadGraphBuilder.findClosestNodeId(graph, endLat, endLng);
 
-                List<RoadGraphBuilder.Node> adjacentNodes = graph.getAdjacentNodes(startNodeId);
-
-                // 주변 노드 출력
-                if (adjacentNodes.isEmpty()) {
-                    System.out.println("주변 노드가 없습니다.");
-                } else {
-                    System.out.println("시작 노드의 주변 노드:");
-                    for (RoadGraphBuilder.Node node : adjacentNodes) {
-                        System.out.println("Node ID: " + node.getNodeId());
-                        System.out.println("Latitude: " + node.getLatitude());
-                        System.out.println("Longitude: " + node.getLongitude());
-                        System.out.println();
-                    }
-                }
-
-                // A* 알고리즘을 이용하여 최단 경로 찾기
-                List<String> shortestPath = aStar.findShortestPath(graph, startNodeId, targetNodeId);
-
-                // 최단 경로가 없을 경우
-                if (shortestPath.isEmpty()) {
-                    Toast.makeText(getApplicationContext(), "경로를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                /*// 출발지와 도착지에 가장 가까운 노드 ID 찾기
-                String startNodeId = roadGraphBuilder.findClosestNodeId(graph, startLat, startLng);
-                Log.d(TAG, "startNodeId = " + startNodeId);
-                String targetNodeId = roadGraphBuilder.findClosestNodeId(graph, endLat, endLng);
-                Log.d(TAG, "targetNodeId = " + targetNodeId);
-
-                // A* 알고리즘을 사용하여 최단 경로 탐색
-                AStar aStar = new AStar();
-                List<String> shortestPath = aStar.findShortestPath(graph, startNodeId, targetNodeId);
-
-                // Tmap Polyline 그리기
-                for (int i = 0; i < shortestPath.size() - 1; i++) {
-                    RoadGraphBuilder.Node startNode = graph.getNode(shortestPath.get(i));
-                    RoadGraphBuilder.Node endNode = graph.getNode(shortestPath.get(i + 1));
-
-                    TMapPolyLine polyline = new TMapPolyLine();
-                    polyline.setLineColor(Color.RED);
-                    polyline.setLineWidth(2);
-
-                    TMapPoint pathStartPoint = new TMapPoint(startNode.getLatitude(), startNode.getLongitude());
-                    TMapPoint pathEndPoint = new TMapPoint(endNode.getLatitude(), endNode.getLongitude());
-
-                    polyline.addLinePoint(pathStartPoint);
-                    polyline.addLinePoint(pathEndPoint);
-
-                    tMapView.addTMapPolyLine("path" + i, polyline);
-                }*/
-
-//                //보행자 경로 탐색 ( 기존 Tmap 제공 최단거리 경로 탐색 )
-//                tMapData.findPathDataWithType(TMapData.TMapPathType.PEDESTRIAN_PATH, startPoint, endPoint, new TMapData.FindPathDataListenerCallback() {
-//                    @Override
-//                    public void onFindPathData(TMapPolyLine tMapPolyLine) {
-//                        // 보행자 경로 표시
-//                        tMapPolyLine.setLineColor(Color.RED);
-//                        tMapPolyLine.setLineWidth(5);
-//                        tMapView.addTMapPath(tMapPolyLine);
-//                        System.out.println("보행자 경로 표시 완료");
-//
-//                        TMapMarkerItem startMarker = new TMapMarkerItem();
-//                        startMarker.setTMapPoint(startPoint);
-//                        startMarker.setName("출발지");
-//                        startMarker.setVisible(TMapMarkerItem.VISIBLE);
-//                        tMapView.addMarkerItem("startMarker", startMarker);
-//
-//                        TMapMarkerItem endMarker = new TMapMarkerItem();
-//                        endMarker.setTMapPoint(endPoint);
-//                        endMarker.setName("도착지");
-//                        endMarker.setVisible(TMapMarkerItem.VISIBLE);
-//                        tMapView.addMarkerItem("endMarker", endMarker);
-//
-//                        // 출발지, 도착지 중심으로 지도 이동
-//                        double minLat = tMapPolyLine.getLinePoint().get(0).getLatitude();
-//                        double maxLat = tMapPolyLine.getLinePoint().get(0).getLatitude();
-//                        double minLng = tMapPolyLine.getLinePoint().get(0).getLongitude();
-//                        double maxLng = tMapPolyLine.getLinePoint().get(0).getLongitude();
-//
-//                        for (TMapPoint point : tMapPolyLine.getLinePoint()) {
-//                            if (minLat > point.getLatitude()) minLat = point.getLatitude();
-//                            if (maxLat < point.getLatitude()) maxLat = point.getLatitude();
-//                            if (minLng > point.getLongitude()) minLng = point.getLongitude();
-//                            if (maxLng < point.getLongitude()) maxLng = point.getLongitude();
-//                        }
-//
-//                        double centerLat = (minLat + maxLat) / 2;
-//                        double centerLng = (minLng + maxLng) / 2;
-//                        TMapPoint centerPoint = new TMapPoint(centerLat, centerLng);
-//                        tMapView.setCenterPoint(centerPoint.getLongitude(), centerPoint.getLatitude());
-//
-//                        // 축척 조정
-//                        TMapInfo mapInfo = tMapView.getDisplayTMapInfo(tMapPolyLine.getLinePoint());
-//                        int zoomLevel = mapInfo.getTMapZoomLevel();
-//                        tMapView.setZoomLevel(zoomLevel);
-//
-//                        // 경로 상의 CCTV 마커 추가
-//                        addCCTVMarkersOnPath(tMapPolyLine);
-//                    }
-//                });
+                // 경로 탐색 및 Polyline 그리기 메소드 호출
+                searchAndDrawRoute(startNodeId, targetNodeId);
             }
         });
+
+        // 안전경로 버튼 클릭 시
+        safeRouteButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //기존의 경로 및 마커 삭제
+                startM.setVisible(TMapMarkerItem.GONE);
+                endM.setVisible(TMapMarkerItem.GONE);
+                tMapView.removeTMapPath();
+                tMapView.removeAllMarkerItem();
+
+                // 출발지와 도착지에 가장 가까운 노드의 ID를 찾음
+                String startNodeId = roadGraphBuilder.findClosestNodeId(graph, startLat, startLng);
+                String targetNodeId = roadGraphBuilder.findClosestNodeId(graph, endLat, endLng);
+
+                // 안전경로 버튼을 선택한 상태로 설정
+                Button safetyRouteButton = findViewById(R.id.btn_safety_route);
+                safetyRouteButton.setSelected(true);
+
+                // 최단경로 버튼은 선택되지 않은 상태로 설정
+                Button shortestRouteButton = findViewById(R.id.btn_shortest_route);
+                shortestRouteButton.setSelected(false);
+
+                // 경로 탐색 및 Polyline 그리기 메소드 호출
+                searchAndDrawRoute(startNodeId, targetNodeId);
+            }
+        });
+
+        // 최단경로 버튼 클릭 시
+        shortestRouteButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 최단경로 버튼 클릭 시 안전경로 버튼 선택 해제
+                Button safetyRouteButton = findViewById(R.id.btn_safety_route);
+                safetyRouteButton.setSelected(false);
+
+                // 최단경로 버튼 선택 상태로 변경
+                shortestRouteButton.setSelected(true);
+
+                // 기존 폴리라인 삭제
+                tMapView.removeAllTMapPolyLine();
+
+                // 기존 마커 삭제
+                tMapView.removeAllMarkerItem();
+
+                // 보행자 경로 탐색 ( 기존 Tmap 제공 최단거리 경로 탐색 )
+                TMapData tMapData = new TMapData();
+                TMapPoint startPoint = new TMapPoint(startLat, startLng);
+                TMapPoint endPoint = new TMapPoint(endLat, endLng);
+                tMapData.findPathDataWithType(TMapData.TMapPathType.PEDESTRIAN_PATH, startPoint, endPoint, new TMapData.FindPathDataListenerCallback() {
+                    @Override
+                    public void onFindPathData(TMapPolyLine tMapPolyLine) {
+                        // 보행자 경로 표시
+                        tMapPolyLine.setLineColor(Color.RED);
+                        tMapPolyLine.setLineWidth(5);
+                        tMapView.addTMapPath(tMapPolyLine);
+                        System.out.println("보행자 경로 표시 완료");
+
+                        // 출발지, 도착지 마커 표시
+                        TMapMarkerItem startMarker = new TMapMarkerItem();
+                        startMarker.setTMapPoint(startPoint);
+                        startMarker.setName("출발지");
+                        startM = startMarker;
+                        startMarker.setVisible(TMapMarkerItem.VISIBLE);
+                        tMapView.addMarkerItem("startMarker", startMarker);
+
+                        TMapMarkerItem endMarker = new TMapMarkerItem();
+                        endMarker.setTMapPoint(endPoint);
+                        endMarker.setName("도착지");
+                        endM = endMarker;
+                        endMarker.setVisible(TMapMarkerItem.VISIBLE);
+                        tMapView.addMarkerItem("endMarker", endMarker);
+
+                        // 출발지, 도착지 중심으로 지도 이동
+                        double minLat = tMapPolyLine.getLinePoint().get(0).getLatitude();
+                        double maxLat = tMapPolyLine.getLinePoint().get(0).getLatitude();
+                        double minLng = tMapPolyLine.getLinePoint().get(0).getLongitude();
+                        double maxLng = tMapPolyLine.getLinePoint().get(0).getLongitude();
+
+                        for (TMapPoint point : tMapPolyLine.getLinePoint()) {
+                            if (minLat > point.getLatitude()) minLat = point.getLatitude();
+                            if (maxLat < point.getLatitude()) maxLat = point.getLatitude();
+                            if (minLng > point.getLongitude()) minLng = point.getLongitude();
+                            if (maxLng < point.getLongitude()) maxLng = point.getLongitude();
+                        }
+
+                        double centerLat = (minLat + maxLat) / 2;
+                        double centerLng = (minLng + maxLng) / 2;
+                        TMapPoint centerPoint = new TMapPoint(centerLat, centerLng);
+                        tMapView.setCenterPoint(centerPoint.getLongitude(), centerPoint.getLatitude());
+
+                        // 축척 조정
+                        TMapInfo mapInfo = tMapView.getDisplayTMapInfo(tMapPolyLine.getLinePoint());
+                        int zoomLevel = mapInfo.getTMapZoomLevel();
+                        tMapView.setZoomLevel(zoomLevel);
+
+                        // 경로 상의 CCTV 마커 추가
+                        addCCTVMarkersOnPath(tMapPolyLine);
+                    }
+                });
+            }
+        });
+    }
+
+
+    private void searchAndDrawRoute(String startNodeId, String targetNodeId) {
+
+        TMapData tMapData = new TMapData();
+        aStar = new AStar();
+
+        try {
+            // A* 알고리즘을 이용하여 최단 경로 찾기
+            List<String> shortestPath = aStar.findShortestPath(graph, startNodeId, targetNodeId);
+            // Tmap Polyline 그리기
+            for (int i = 0; i < shortestPath.size() - 1; i++) {
+                RoadGraphBuilder.Node startNode = graph.getNode(shortestPath.get(i));
+                RoadGraphBuilder.Node endNode = graph.getNode(shortestPath.get(i + 1));
+
+                TMapPolyLine polyline = new TMapPolyLine();
+                polyline.setLineColor(Color.RED);
+                polyline.setLineWidth(2);
+
+                TMapPoint pathStartPoint = new TMapPoint(startNode.getLatitude(), startNode.getLongitude());
+                TMapPoint pathEndPoint = new TMapPoint(endNode.getLatitude(), endNode.getLongitude());
+
+                polyline.addLinePoint(pathStartPoint);
+                polyline.addLinePoint(pathEndPoint);
+
+                tMapView.addTMapPolyLine("path" + i, polyline);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            // 예외가 발생한 경우 AlertDialog 표시
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setMessage("경로탐색에 실패하였습니다.")
+                    .setPositiveButton("확인", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int id) {
+                            dialog.dismiss(); // 다이얼로그 닫기
+                        }
+                    });
+            // AlertDialog 생성 및 표시
+            AlertDialog dialog = builder.create();
+            dialog.show();
+        }
     }
 
     // 마커에 풍선뷰 설정하는 함수
@@ -611,5 +714,25 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("TAG", "addCCTVMarkersOnPath:onCancelled", error.toException());
             }
         });
+    }
+
+    // 출발지 마커 추가 메소드
+    private void addStartMarker(double latitude, double longitude) {
+        TMapMarkerItem startMarker = new TMapMarkerItem();
+        TMapPoint startPoint = new TMapPoint(latitude, longitude);
+        startMarker.setTMapPoint(startPoint);
+        startMarker.setName("출발지");
+        startMarker.setVisible(TMapMarkerItem.VISIBLE);
+        tMapView.addMarkerItem("startMarker", startMarker);
+    }
+
+    // 도착지 마커 추가 메소드
+    private void addEndMarker(double latitude, double longitude) {
+        TMapMarkerItem endMarker = new TMapMarkerItem();
+        TMapPoint endPoint = new TMapPoint(latitude, longitude);
+        endMarker.setTMapPoint(endPoint);
+        endMarker.setName("도착지");
+        endMarker.setVisible(TMapMarkerItem.VISIBLE);
+        tMapView.addMarkerItem("endMarker", endMarker);
     }
 }

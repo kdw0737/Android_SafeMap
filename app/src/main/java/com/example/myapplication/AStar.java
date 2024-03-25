@@ -5,6 +5,8 @@ import java.util.*;
 public class AStar {
     // A* 알고리즘을 이용하여 최단 경로 탐색
     public List<String> findShortestPath(RoadGraphBuilder.Graph graph, String startNodeId, String targetNodeId) {
+        System.out.println("Astar 알고리즘 시작");
+
         // 시작 노드와 목표 노드의 정보를 가져옴
         RoadGraphBuilder.Node startNode = graph.getNode(startNodeId);
         RoadGraphBuilder.Node targetNode = graph.getNode(targetNodeId);
@@ -28,9 +30,11 @@ public class AStar {
 
         while (!priorityQueue.isEmpty()) {
             String currentNodeId = priorityQueue.poll();
+            System.out.println("currentNodeId = " + currentNodeId);
 
             // 목표 노드에 도착하면 탐색 종료
             if (currentNodeId.equals(targetNodeId)) {
+                System.out.println("목표 노드에 도착");
                 break;
             }
 
@@ -39,9 +43,16 @@ public class AStar {
             // 현재 노드의 이웃 노드들을 가져옴
             List<RoadGraphBuilder.Edge> neighbors = graph.getNeighbors(currentNodeId);
             for (RoadGraphBuilder.Edge neighbor : neighbors) {
-                String neighborNodeId = neighbor.getEndNodeId();
+                String neighborNodeId;
+                if (currentNodeId.equals(neighbor.getStartNodeId())) {
+                    neighborNodeId = neighbor.getEndNodeId(); // 현재 노드가 엣지의 시작 노드인 경우
+                } else {
+                    neighborNodeId = neighbor.getStartNodeId(); // 현재 노드가 엣지의 끝 노드인 경우
+                }
+                System.out.println("neighborNodeId = " + neighborNodeId);
                 // 방문하지 않은 이웃 노드에 대해서만 처리
                 if (!visited.contains(neighborNodeId)) {
+                    System.out.println("방문하지 않은 노드 처리 :" + neighborNodeId);
                     // 현재 노드까지의 실제 비용을 계산
                     double actualCost = actualCosts.get(currentNodeId) + neighbor.getLength();
                     // 이웃 노드까지의 실제 비용이 현재까지 계산된 실제 비용보다 작을 경우
@@ -63,6 +74,7 @@ public class AStar {
         List<String> shortestPath = new ArrayList<>();
         String currentNode = targetNodeId;
         while (previousNodes.containsKey(currentNode)) {
+            System.out.println("역추적 진행");
             shortestPath.add(currentNode);
             currentNode = previousNodes.get(currentNode);
         }
