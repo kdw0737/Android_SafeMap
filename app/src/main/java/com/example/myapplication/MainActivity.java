@@ -21,7 +21,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -31,7 +30,6 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 import com.skt.Tmap.TMapData;
 import com.skt.Tmap.TMapInfo;
@@ -41,14 +39,9 @@ import com.skt.Tmap.TMapPolyLine;
 import com.skt.Tmap.TMapView;
 import com.skt.Tmap.poi_item.TMapPOIItem;
 
-import org.jgrapht.Graph;
-import org.jgrapht.graph.DefaultWeightedEdge;
-import org.jgrapht.graph.SimpleWeightedGraph;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
     private TMapView tMapView;
@@ -70,6 +63,13 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private RoadGraphBuilder.Graph graph;
     private AStar aStar;
+    private List<seoulCctv> cctvList;
+    private List<seoulBell> bellList;
+
+    private Map<String, Integer> safetyCountMap;
+
+    private DatabaseReference cctvRef;
+    private DatabaseReference bellRef;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,41 +90,6 @@ public class MainActivity extends AppCompatActivity {
         Button button = findViewById(R.id.my_location_button); // 버튼 객체 생성
         final int LOCATION_PERMISSION_REQUEST_CODE = 1;
 
-        /*GraphBuilderWithIDs graphBuilderWithIDs = new GraphBuilderWithIDs();
-
-        // JSON 파일 읽기
-        String nodeJson = graphBuilderWithIDs.loadJSONFromAsset(this, "node.json");
-        String edgeJson = graphBuilderWithIDs.loadJSONFromAsset(this, "edge.json");
-
-        if (nodeJson != null && edgeJson != null) {
-            // JSON 파싱 및 그래프 생성
-            graph = graphBuilderWithIDs.createGraphFromJSON(nodeJson, edgeJson);
-            System.out.println("그래프 생성 완료");
-
-            // 그래프 간선 테스트 로그
-            System.out.println("Edges:");
-            for (GraphBuilderWithIDs.Edge edge : graph.getEdges()) {
-                System.out.println("Link ID: " + edge.getLinkId() + ", Length: " + edge.getLength());
-                System.out.println("Coordinates:");
-                for (GraphBuilderWithIDs.Coordinate coordinate : edge.getCoordinates()) {
-                    System.out.println("Latitude: " + coordinate.getLatitude() + ", Longitude: " + coordinate.getLongitude());
-                }
-            }
-            // 각 노드의 좌표 테스트 로그
-            System.out.println("\nNodes:");
-            for (GraphBuilderWithIDs.Node node : graph.getNodes()) {
-                System.out.println("Node ID: " + node.getId() + ", Latitude: " + node.getLatitude() + ", Longitude: " + node.getLongitude());
-            }
-        } else {
-            System.err.println("Failed to load JSON from asset");
-        }
-
-        GraphBuilderWithIDs.Node nodeA = graph.getNodes().get(0); // A노드를 가져옴
-        List<GraphBuilderWithIDs.Edge> edgesFromNodeA = nodeA.getEdges(); // A노드에 연결된 간선들을 가져옴
-        System.out.println("edgesFromNodeA = " + edgesFromNodeA);;
-
-*/
-
         //Map을 이용해서 그래프 생성
         RoadGraphBuilder roadGraphBuilder = new RoadGraphBuilder();
 
@@ -135,30 +100,67 @@ public class MainActivity extends AppCompatActivity {
             // JSON 파싱 및 그래프 생성
             graph = roadGraphBuilder.createGraphFromJSON(json);
             Log.d(TAG, "그래프 생성 완료");
-/*            // 그래프 간선 테스트 로그
-            for (RoadGraphBuilder.Edge edge : graph.getEdges()) {
-                Log.d(TAG, "Edge: " + edge.getStartNodeId() + " -> " + edge.getEndNodeId() + ", Length: " + edge.getLength());
-
-                // 엣지에 포함된 좌표들 테스트 출력
-                List<RoadGraphBuilder.Node> coordinates = graph.getEdgeCoordinates(edge.getEdgeId());
-                Log.d(TAG, "Coordinates Size:" + coordinates.size());
-                if (coordinates != null) {
-                    for (RoadGraphBuilder.Node coordinate : coordinates) {
-                        Log.d(TAG, "Latitude: " + coordinate.getLatitude() + ", Longitude: " + coordinate.getLongitude());
-                    }
-                } else {
-                    Log.d(TAG, "No coordinates found for edge: " + edge.getEdgeId());
-                }
-            }
-
-            // 각 노드의 좌표 테스트 로그
-            for (Map.Entry<String, RoadGraphBuilder.Node> entry : graph.getNodes().entrySet()) {
-                RoadGraphBuilder.Node node = entry.getValue();
-                Log.d(TAG, "Node: " + node.getNodeId() + ", Latitude: " + node.getLatitude() + ", Longitude: " + node.getLongitude());
-            }*/
         } else {
             Log.e(TAG, "Failed to load JSON from asset");
         }
+
+        // Firebase 데이터베이스 레퍼런스 설정
+        cctvRef = FirebaseDatabase.getInstance().getReference("sungbook_cctv");
+        cctvList = new ArrayList<>();
+
+        //cctvList 데이터 생성
+        cctvRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 데이터베이스에서 CCTV 데이터를 가져와서 리스트에 저장
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                    // 데이터 스냅샷으로부터 seoulCctv 객체를 가져와서 cctvList에 추가
+                    seoulCctv cctv = new seoulCctv();
+                    cctv.setLatitude(dataSnapshot.child("Latitude").getValue().toString().replaceAll("\"", ""));
+                    cctv.setLongitude(dataSnapshot.child("Longitude").getValue().toString().replaceAll("\"", ""));
+                    cctv.setNum(dataSnapshot.child("Num").getValue().toString().replaceAll("\"", ""));
+                    cctvList.add(cctv);
+                }
+
+                //노드별 근처 cctv 개수 저장
+                safeCountCalculator safeCountCalculator = new safeCountCalculator();
+                safetyCountMap = safeCountCalculator.calculateCctvWeights(graph, cctvList);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.d("TAG", "onCancelled", error.toException());
+            }
+        });
+
+        // Firebase 데이터베이스 레퍼런스 설정
+        bellRef = FirebaseDatabase.getInstance().getReference("sungbook_bell");
+        bellList = new ArrayList<>();
+
+        // 데이터 생성
+        bellRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 데이터베이스에서 Bell 데이터를 가져와서 리스트에 저장
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                    // 데이터 스냅샷으로부터 seoulBell 객체를 가져와서 추가
+                    seoulBell bell = new seoulBell();
+                    bell.setLatitude(dataSnapshot.child("Latitude").getValue().toString().replaceAll("\"", ""));
+                    bell.setLongitude(dataSnapshot.child("Longitude").getValue().toString().replaceAll("\"", ""));
+                    bell.setNum(dataSnapshot.child("Num").getValue().toString().replaceAll("\"", ""));
+                    bellList.add(bell);
+                }
+
+                //노드별 근처 bell 개수 저장
+                safeCountCalculator safeCountCalculator = new safeCountCalculator();
+                safetyCountMap = safeCountCalculator.calculateBellWeights(graph, bellList);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.d("TAG", "onCancelled", error.toException());
+            }
+        });
 
 
         button.setOnClickListener(new View.OnClickListener() {
@@ -243,6 +245,9 @@ public class MainActivity extends AppCompatActivity {
                 poiItems.clear();
                 tMapView.removeAllMarkerItem();
 
+                // 기존 폴리라인 삭제
+                tMapView.removeAllTMapPolyLine();
+
                 // TMapPOIItem 을 이용하여 검색어(keyword)를 포함한 장소 검색
                 tMapData.findTitlePOI(keyword, new TMapData.FindTitlePOIListenerCallback() {
                     @Override
@@ -309,6 +314,9 @@ public class MainActivity extends AppCompatActivity {
                 // 기존 검색 결과와 마커를 모두 지웁니다.
                 poiItems.clear();
                 tMapView.removeAllMarkerItem();
+
+                // 기존 폴리라인 삭제
+                tMapView.removeAllTMapPolyLine();
 
                 // TMapPOIItem 을 이용하여 검색어(keyword)를 포함한 장소 검색
                 tMapData.findTitlePOI(keyword, new TMapData.FindTitlePOIListenerCallback() {
@@ -400,6 +408,14 @@ public class MainActivity extends AppCompatActivity {
                 String startNodeId = roadGraphBuilder.findClosestNodeId(graph, startLat, startLng);
                 String targetNodeId = roadGraphBuilder.findClosestNodeId(graph, endLat, endLng);
 
+                // 출발지에 마커 추가
+                TMapPoint startPoint = new TMapPoint(graph.nodes.get(startNodeId).getLatitude(), graph.nodes.get(startNodeId).getLongitude());
+                addMarker(startPoint, "출발지");
+
+                // 도착지에 마커 추가
+                TMapPoint endPoint = new TMapPoint(graph.nodes.get(targetNodeId).getLatitude(), graph.nodes.get(targetNodeId).getLongitude());
+                addMarker(endPoint, "도착지");
+
                 // 경로 탐색 및 Polyline 그리기 메소드 호출
                 searchAndDrawRoute(startNodeId, targetNodeId);
             }
@@ -418,6 +434,14 @@ public class MainActivity extends AppCompatActivity {
                 // 출발지와 도착지에 가장 가까운 노드의 ID를 찾음
                 String startNodeId = roadGraphBuilder.findClosestNodeId(graph, startLat, startLng);
                 String targetNodeId = roadGraphBuilder.findClosestNodeId(graph, endLat, endLng);
+
+                // 출발지에 마커 추가
+                TMapPoint startPoint = new TMapPoint(graph.nodes.get(startNodeId).getLatitude(), graph.nodes.get(startNodeId).getLongitude());
+                addMarker(startPoint, "출발지");
+
+                // 도착지에 마커 추가
+                TMapPoint endPoint = new TMapPoint(graph.nodes.get(targetNodeId).getLatitude(), graph.nodes.get(targetNodeId).getLongitude());
+                addMarker(endPoint, "도착지");
 
                 // 안전경로 버튼을 선택한 상태로 설정
                 Button safetyRouteButton = findViewById(R.id.btn_safety_route);
@@ -501,7 +525,7 @@ public class MainActivity extends AppCompatActivity {
                         tMapView.setZoomLevel(zoomLevel);
 
                         // 경로 상의 CCTV 마커 추가
-                        addCCTVMarkersOnPath(tMapPolyLine);
+                        addCCTVMarkersOnPath(tMapPolyLine, cctvRef);
                     }
                 });
             }
@@ -513,10 +537,11 @@ public class MainActivity extends AppCompatActivity {
 
         TMapData tMapData = new TMapData();
         aStar = new AStar();
-
+        aStar.setCctvList(cctvList);
+        aStar.setSafetyMap(safetyCountMap);
         try {
             // A* 알고리즘을 이용하여 최단 경로 찾기
-            List<String> shortestPath = aStar.findShortestPath(graph, startNodeId, targetNodeId);
+            List<String> shortestPath = aStar.findShortestAndSafestPath(graph, startNodeId, targetNodeId);
             // Tmap Polyline 그리기
             for (int i = 0; i < shortestPath.size() - 1; i++) {
                 RoadGraphBuilder.Node startNode = graph.getNode(shortestPath.get(i));
@@ -524,7 +549,7 @@ public class MainActivity extends AppCompatActivity {
 
                 TMapPolyLine polyline = new TMapPolyLine();
                 polyline.setLineColor(Color.RED);
-                polyline.setLineWidth(2);
+                polyline.setLineWidth(5);
 
                 TMapPoint pathStartPoint = new TMapPoint(startNode.getLatitude(), startNode.getLongitude());
                 TMapPoint pathEndPoint = new TMapPoint(endNode.getLatitude(), endNode.getLongitude());
@@ -534,7 +559,8 @@ public class MainActivity extends AppCompatActivity {
 
                 tMapView.addTMapPolyLine("path" + i, polyline);
             }
-        } catch (Exception e) {
+        }
+         catch (Exception e) {
             e.printStackTrace();
             // 예외가 발생한 경우 AlertDialog 표시
             AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
@@ -598,50 +624,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void loadCCTVLocations() {
-        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("seoul_cctv");
-        ref.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
-                    seoulCctv list = dataSnapshot.getValue(seoulCctv.class);
-
-                    double lat = list.getWGS84위도();
-                    double lng = list.getWGS84경도();
-                    int num = list.get번호();
-
-                    // Tmap API를 이용하여 지도에 마커 추가
-                    TMapMarkerItem markerItem = new TMapMarkerItem();
-                    TMapPoint point = new TMapPoint(lat, lng);
-                    markerItem.setTMapPoint(point);
-                    markerItem.setName("CCTV " + num);
-
-                    // 마커 아이콘 설정
-                    Bitmap icon = BitmapFactory.decodeResource(getResources(), R.drawable.cctv);
-                    markerItem.setIcon(icon);
-
-                    tMapView.addMarkerItem("markerItem" + num, markerItem);
-                }
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                Log.d("TAG", "loadCCTVLocations:onCancelled", error.toException());
-            }
-        });
-    }
-
-    // 출발지와 도착지 사이에 있는 노드인지 확인하는 함수
-    private boolean isBetween(double startLat, double startLng, double endLat, double endLng,
-                              double nodeLat, double nodeLng) {
-        // 출발지와 도착지의 위도 경도를 기준으로 사각형 영역 내에 있는지 확인
-        return (nodeLat >= Math.min(startLat, endLat) &&
-                nodeLat <= Math.max(startLat, endLat) &&
-                nodeLng >= Math.min(startLng, endLng) &&
-                nodeLng <= Math.max(startLng, endLng));
-    }
-
-
     private void loadBellLocations() {
         DatabaseReference ref = FirebaseDatabase.getInstance().getReference("seoul_bell");
         ref.addValueEventListener(new ValueEventListener() {
@@ -650,9 +632,9 @@ public class MainActivity extends AppCompatActivity {
                 for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
                     seoulBell list = dataSnapshot.getValue(seoulBell.class);
 
-                    double lat = list.getWGS84위도();
-                    double lng = list.getWGS84경도();
-                    int num = list.get번호();
+                    String lat = list.getLatitude();
+                    String lng = list.getLongitude();
+                    String num = list.getNum();
                 }
             }
 
@@ -662,8 +644,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-    private void addCCTVMarkersOnPath(TMapPolyLine path) {
-        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("seoul_cctv");
+
+    //경로에 존재하는 cctv를 지도상에 표시
+    private void addCCTVMarkersOnPath(TMapPolyLine path, DatabaseReference ref) {
         ref.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
@@ -677,11 +660,11 @@ public class MainActivity extends AppCompatActivity {
                 for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
                     seoulCctv list = dataSnapshot.getValue(seoulCctv.class);
 
-                    double lat = list.getWGS84위도();
-                    double lng = list.getWGS84경도();
-                    int num = list.get번호();
+                    String lat = list.getLatitude();
+                    String lng = list.getLongitude();
+                    String num = list.getNum();
 
-                    TMapPoint cctvPoint = new TMapPoint(lat, lng);
+                    TMapPoint cctvPoint = new TMapPoint(Double.parseDouble(lat), Double.parseDouble(lng));
 
                     for (int i = 0; i < points.size() - 1; i++) {
                         TMapPoint start = points.get(i);
@@ -734,5 +717,14 @@ public class MainActivity extends AppCompatActivity {
         endMarker.setName("도착지");
         endMarker.setVisible(TMapMarkerItem.VISIBLE);
         tMapView.addMarkerItem("endMarker", endMarker);
+    }
+
+    // 마커 추가 메소드
+    private void addMarker(TMapPoint point, String name) {
+        TMapMarkerItem marker = new TMapMarkerItem();
+        marker.setTMapPoint(point);
+        marker.setName(name);
+        marker.setVisible(TMapMarkerItem.VISIBLE);
+        tMapView.addMarkerItem(name, marker);
     }
 }

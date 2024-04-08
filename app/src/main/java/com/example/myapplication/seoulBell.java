@@ -1,39 +1,39 @@
 package com.example.myapplication;
 
 public class seoulBell {
-    private double WGS84경도;
-    private double WGS84위도;
-    private int 번호;
+    private String Longitude;
+    private String Latitude;
+    private String Num;
 
     public seoulBell() {}
 
-    public seoulBell(double WGS84경도, double WGS84위도, int 번호) {
-        this.WGS84경도 = WGS84경도;
-        this.WGS84위도 = WGS84위도;
-        this.번호 = 번호;
+    public seoulBell(String Longitude, String Latitude, String Num) {
+        this.Longitude = Longitude;
+        this.Latitude = Latitude;
+        this.Num = Num;
     }
 
-    public double getWGS84경도() {
-        return WGS84경도;
+    public String getLongitude() {
+        return Longitude;
     }
 
-    public void setWGS84경도(double WGS84경도) {
-        this.WGS84경도 = WGS84경도;
+    public void setLongitude(String longitude) {
+        this.Longitude = longitude;
     }
 
-    public double getWGS84위도() {
-        return WGS84위도;
+    public String getLatitude() {
+        return Latitude;
     }
 
-    public void setWGS84위도(double WGS84위도) {
-        this.WGS84위도 = WGS84위도;
+    public void setLatitude(String latitude) {
+        this.Latitude = latitude;
     }
 
-    public int get번호() {
-        return 번호;
+    public String getNum() {
+        return Num;
     }
 
-    public void set번호(int 번호) {
-        this.번호 = 번호;
+    public void setNum(String num) {
+        this.Num = num;
     }
 }

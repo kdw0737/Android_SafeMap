@@ -1,39 +1,40 @@
 package com.example.myapplication;
 
 public class seoulCctv {
-    private double WGS84경도;
-    private double WGS84위도;
-    private int 번호;
+    private String Latitude;
+    private String Longitude;
+    private String Num;
 
-    public seoulCctv() {}
-
-    public seoulCctv(double WGS84경도, double WGS84위도, int 번호) {
-        this.WGS84경도 = WGS84경도;
-        this.WGS84위도 = WGS84위도;
-        this.번호 = 번호;
+    public seoulCctv() {
     }
 
-    public double getWGS84경도() {
-        return WGS84경도;
+    public seoulCctv(String latitude, String longitude, String num) {
+        Latitude = latitude;
+        Longitude = longitude;
+        Num = num;
     }
 
-    public void setWGS84경도(double WGS84경도) {
-        this.WGS84경도 = WGS84경도;
+    public String getLatitude() {
+        return Latitude;
     }
 
-    public double getWGS84위도() {
-        return WGS84위도;
+    public void setLatitude(String latitude) {
+        Latitude = latitude;
     }
 
-    public void setWGS84위도(double WGS84위도) {
-        this.WGS84위도 = WGS84위도;
+    public String getLongitude() {
+        return Longitude;
     }
 
-    public int get번호() {
-        return 번호;
+    public void setLongitude(String longitude) {
+        Longitude = longitude;
     }
 
-    public void set번호(int 번호) {
-        this.번호 = 번호;
+    public String getNum() {
+        return Num;
+    }
+
+    public void setNum(String num) {
+        Num = num;
     }
 }

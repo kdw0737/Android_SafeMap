@@ -105,9 +105,9 @@ public class RoadGraphBuilder {
     }
 
     public static class Graph {
-        public Map<String, List<Edge>> adjacencyList;
-        public Map<String, Node> nodes;
-        private Map<String, List<Node>> edgeCoordinatesMap; // 엣지의 좌표 맵
+        public Map<String, List<Edge>> adjacencyList; // key : NODE_ID , value : 연결된 간선 리스트
+        public Map<String, Node> nodes; // key : NODE_ID
+        private Map<String, List<Node>> edgeCoordinatesMap; // 엣지의 좌표 맵 key : EDGE_ID
 
         public Graph() {
             adjacencyList = new HashMap<>();
@@ -257,4 +257,68 @@ public class RoadGraphBuilder {
             return nodeId;
         }
     }
+/*
+    private int getCCTVCountBetweenNodes(Graph graph, String startNodeId, String endNodeId) {
+        // 노드 간의 거리가 10m 이하인 경우
+        if (graph.getNode(startNodeId) == null || graph.getNode(endNodeId) == null) {
+            System.out.println("getCctvCount메서드 에서 Node가 존재하지 않습니다.");
+            System.out.println("startNodeId = " + startNodeId);
+            System.out.println("endNodeId = " + endNodeId);
+            return 0; // 시작 노드 또는 도착 노드가 존재하지 않는 경우 0 반환
+        }
+
+        double edgeLength = getEdgeLength(graph, startNodeId, endNodeId);
+
+        // 노드 간의 거리가 10m 이하인 경우
+        if (edgeLength <= 10.0) {
+            // 도착 노드를 기준으로만 CCTV 개수를 카운트
+            return graph.getNode(endNodeId).getCctvCount();
+        } else {
+            // 20m 이상인 경우에는 엣지를 적절히 분할하여 각각의 구간에서 CCTV 개수를 계산
+            int totalCCTVCount = 0;
+            List<Edge> edges = graph.getNeighbors(startNodeId);
+            for (Edge edge : edges) {
+                String neighborNodeId = edge.getEndNodeId().equals(startNodeId) ? edge.getStartNodeId() : edge.getEndNodeId();
+                double divisionLength = edge.getLength() / Math.ceil(edgeLength / 10.0); // 간선을 10m 간격으로 분할
+                for (int i = 1; i < Math.ceil(edgeLength / 10.0); i++) {
+                    double intermediateLatitude = graph.getNode(startNodeId).getLatitude() +
+                            (graph.getNode(neighborNodeId).getLatitude() - graph.getNode(startNodeId).getLatitude()) * i * 10.0 / edgeLength;
+                    double intermediateLongitude = graph.getNode(startNodeId).getLongitude() +
+                            (graph.getNode(neighborNodeId).getLongitude() - graph.getNode(startNodeId).getLongitude()) * i * 10.0 / edgeLength;
+                    // 분할된 지점에서 CCTV 개수 확인
+                    if (hasCCTV(graph, intermediateLatitude, intermediateLongitude)) {
+                        totalCCTVCount++;
+                    }
+                }
+            }
+            return totalCCTVCount;
+        }
+    }
+
+    // 엣지의 길이를 반환하는 메서드
+    private double getEdgeLength(Graph graph, String startNodeId, String endNodeId) {
+        List<Edge> edges = graph.getNeighbors(startNodeId);
+        for (Edge edge : edges) {
+            if ((edge.getStartNodeId().equals(startNodeId) && edge.getEndNodeId().equals(endNodeId)) ||
+                    (edge.getStartNodeId().equals(endNodeId) && edge.getEndNodeId().equals(startNodeId))) {
+                return edge.getLength();
+            }
+        }
+        return 0.0; // 해당 엣지가 존재하지 않는 경우 0 반환
+    }
+
+    // 해당 지점 주변에 10m 이내에 CCTV가 존재하는지 확인하는 메서드
+    private boolean hasCCTV(Graph graph, double latitude, double longitude) {
+        // 각 노드를 기준으로 10m 이내에 CCTV가 있는지 확인
+        for (Map.Entry<String, Node> entry : graph.getNodes().entrySet()) {
+            Node node = entry.getValue();
+            if (calculateDistance(latitude, longitude, node.getLatitude(), node.getLongitude()) <= 10.0) {
+                if (node.getCctvCount() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }*/
+
 }
