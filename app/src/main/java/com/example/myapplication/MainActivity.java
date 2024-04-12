@@ -241,12 +241,20 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String keyword = etStart.getText().toString();
-                // 기존 검색 결과와 마커를 모두 지웁니다.
+                // 기존 검색 결과를 모두 지웁니다.
                 poiItems.clear();
-                tMapView.removeAllMarkerItem();
 
                 // 기존 폴리라인 삭제
                 tMapView.removeAllTMapPolyLine();
+
+                // 기존의 경로 및 마커 삭제
+                if (startM != null && endM != null) {
+                    startM.setVisible(TMapMarkerItem.GONE);
+                    endM.setVisible(TMapMarkerItem.GONE);
+                }
+                tMapView.removeTMapPath();
+                tMapView.removeAllMarkerItem();
+
 
                 // TMapPOIItem 을 이용하여 검색어(keyword)를 포함한 장소 검색
                 tMapData.findTitlePOI(keyword, new TMapData.FindTitlePOIListenerCallback() {
@@ -311,12 +319,20 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 String keyword = etDestination.getText().toString();
 
-                // 기존 검색 결과와 마커를 모두 지웁니다.
+                // 기존 검색 결과를 모두 지웁니다.
                 poiItems.clear();
-                tMapView.removeAllMarkerItem();
 
                 // 기존 폴리라인 삭제
                 tMapView.removeAllTMapPolyLine();
+
+                // 기존의 경로 및 마커 삭제
+                if (startM != null && endM != null) {
+                    startM.setVisible(TMapMarkerItem.GONE);
+                    endM.setVisible(TMapMarkerItem.GONE);
+                }
+                tMapView.removeTMapPath();
+                tMapView.removeAllMarkerItem();
+
 
                 // TMapPOIItem 을 이용하여 검색어(keyword)를 포함한 장소 검색
                 tMapData.findTitlePOI(keyword, new TMapData.FindTitlePOIListenerCallback() {
@@ -533,21 +549,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    // 경로 탐색 및 그리기
     private void searchAndDrawRoute(String startNodeId, String targetNodeId) {
-
         TMapData tMapData = new TMapData();
         aStar = new AStar();
         aStar.setCctvList(cctvList);
         aStar.setSafetyMap(safetyCountMap);
+
         try {
             // A* 알고리즘을 이용하여 최단 경로 찾기
             List<String> shortestPath = aStar.findShortestAndSafestPath(graph, startNodeId, targetNodeId);
+            TMapPolyLine polyline = new TMapPolyLine();
             // Tmap Polyline 그리기
             for (int i = 0; i < shortestPath.size() - 1; i++) {
                 RoadGraphBuilder.Node startNode = graph.getNode(shortestPath.get(i));
                 RoadGraphBuilder.Node endNode = graph.getNode(shortestPath.get(i + 1));
 
-                TMapPolyLine polyline = new TMapPolyLine();
                 polyline.setLineColor(Color.RED);
                 polyline.setLineWidth(5);
 
@@ -559,22 +576,51 @@ public class MainActivity extends AppCompatActivity {
 
                 tMapView.addTMapPolyLine("path" + i, polyline);
             }
-        }
-         catch (Exception e) {
+
+            // 출발지와 도착지가 모두 보이도록 축척 조정
+            adjustZoomToRoute(shortestPath);
+
+            //cctv 마커 추가
+            addCCTVMarkersOnPath(polyline, cctvRef);
+
+            //bell 마커 추가
+            addBellMarkersOnPath(polyline, bellRef);
+        } catch (Exception e) {
             e.printStackTrace();
             // 예외가 발생한 경우 AlertDialog 표시
             AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-            builder.setMessage("경로탐색에 실패하였습니다.")
-                    .setPositiveButton("확인", new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int id) {
-                            dialog.dismiss(); // 다이얼로그 닫기
-                        }
-                    });
-            // AlertDialog 생성 및 표시
+            builder.setMessage("Failed to find route.")
+                    .setPositiveButton("OK", (dialog, id) -> dialog.dismiss());
             AlertDialog dialog = builder.create();
             dialog.show();
         }
     }
+
+    // 출발지와 도착지가 모두 보이도록 축척을 조정하는 메서드
+    private void adjustZoomToRoute(List<String> shortestPath) {
+        double minLat = Double.MAX_VALUE;
+        double maxLat = Double.MIN_VALUE;
+        double minLng = Double.MAX_VALUE;
+        double maxLng = Double.MIN_VALUE;
+
+        for (String nodeId : shortestPath) {
+            RoadGraphBuilder.Node node = graph.getNode(nodeId);
+            double lat = node.getLatitude();
+            double lng = node.getLongitude();
+
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+            minLng = Math.min(minLng, lng);
+            maxLng = Math.max(maxLng, lng);
+        }
+
+        double centerLat = (minLat + maxLat) / 2;
+        double centerLng = (minLng + maxLng) / 2;
+
+        tMapView.setCenterPoint(centerLng, centerLat);
+        tMapView.zoomToSpan(maxLng - minLng, maxLat - minLat);
+    }
+
 
     // 마커에 풍선뷰 설정하는 함수
     private void setBalloonView(TMapMarkerItem marker, String title, String address, EditText text, boolean status) {
@@ -624,27 +670,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void loadBellLocations() {
-        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("seoul_bell");
-        ref.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
-                    seoulBell list = dataSnapshot.getValue(seoulBell.class);
-
-                    String lat = list.getLatitude();
-                    String lng = list.getLongitude();
-                    String num = list.getNum();
-                }
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                Log.d("TAG", "loadBellLocations:onCancelled", error.toException());
-            }
-        });
-    }
-
     //경로에 존재하는 cctv를 지도상에 표시
     private void addCCTVMarkersOnPath(TMapPolyLine path, DatabaseReference ref) {
         ref.addListenerForSingleValueEvent(new ValueEventListener() {
@@ -682,6 +707,60 @@ public class MainActivity extends AppCompatActivity {
                                 markerItem.setName("CCTV " + num);
 
                                 Bitmap icon = BitmapFactory.decodeResource(getResources(), R.drawable.cctv);
+                                markerItem.setIcon(icon);
+
+                                tMapView.addMarkerItem("markerItem" + num, markerItem);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.d("TAG", "addCCTVMarkersOnPath:onCancelled", error.toException());
+            }
+        });
+    }
+
+    //경로에 존재하는 bell을 지도상에 표시
+    private void addBellMarkersOnPath(TMapPolyLine path, DatabaseReference ref) {
+        ref.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // 경로상의 좌표 추출
+                List<TMapPoint> points = path.getLinePoint();
+
+                // 추출할 좌표 간격 설정 (미터 단위)
+                int interval = 20;
+
+                // 추출된 좌표 주변의 CCTV 마커 추가
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                    seoulCctv list = dataSnapshot.getValue(seoulCctv.class);
+
+                    String lat = list.getLatitude();
+                    String lng = list.getLongitude();
+                    String num = list.getNum();
+
+                    TMapPoint cctvPoint = new TMapPoint(Double.parseDouble(lat), Double.parseDouble(lng));
+
+                    for (int i = 0; i < points.size() - 1; i++) {
+                        TMapPoint start = points.get(i);
+                        TMapPoint end = points.get(i + 1);
+                        double distance = getDistance(start, end);
+
+                        List<TMapPoint> linePoints = path.getLinePoint();
+
+                        for (int j = 0; j < distance; j += interval) {
+                            TMapPoint point = linePoints.get(i);
+                            double distanceToCCTV = getDistance(point, cctvPoint);
+                            if (distanceToCCTV <= interval) { // 경로로부터 20미터 이내에 존재하는 경우에만 마커 추가
+                                TMapMarkerItem markerItem = new TMapMarkerItem();
+                                markerItem.setTMapPoint(cctvPoint);
+                                markerItem.setName("Bell " + num);
+
+                                Bitmap icon = BitmapFactory.decodeResource(getResources(), R.drawable.bell);
                                 markerItem.setIcon(icon);
 
                                 tMapView.addMarkerItem("markerItem" + num, markerItem);
