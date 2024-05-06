@@ -3,6 +3,7 @@ package com.example.myapplication;
 import static com.skt.Tmap.MapUtils.getDistance;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -14,13 +15,17 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -44,14 +49,23 @@ import java.util.List;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
+    private static final long MIN_TIME_BETWEEN_UPDATES = 10 * 1000; // 10초
+    private static final float MIN_DISTANCE_FOR_UPDATES = 10.0f; // 10미터
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
     private TMapView tMapView;
     private EditText etStart;
     private EditText etDestination;
     private Button btnStartSearch;
     private Button btnDestinationSearch;
+    private Button sirenButton;
     private Button btnSearchRoute;
+    private Button myLocation;
     private Button shortestRouteButton;
     private Button safeRouteButton;
+    private GestureDetector gestureDetector;
+    // 더블클릭 상태를 나타내는 변수
+    private boolean doubleClick = false;
+    private MediaPlayer mediaPlayer;
     private TMapData tMapData;
     private double startLng;
     private double startLat;
@@ -70,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
 
     private DatabaseReference cctvRef;
     private DatabaseReference bellRef;
+    private LocationManager locationManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,8 +98,8 @@ public class MainActivity extends AppCompatActivity {
         tMapView.setLanguage(TMapView.LANGUAGE_KOREAN); // 언어 설정
         frameLayoutTmap.addView(tMapView);
 
-        // LocationManager와 Criteria 객체 생성
-        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        // LocationManager와 Criteria 객체 생성locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         Criteria criteria = new Criteria();
 
         Button button = findViewById(R.id.my_location_button); // 버튼 객체 생성
@@ -162,68 +177,102 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        myLocation = findViewById(R.id.my_location_button);
 
-        button.setOnClickListener(new View.OnClickListener() {
+        // 위치 제공자 얻기
+        String provider = locationManager.getBestProvider(criteria, true);
+
+        // 현재 내 위치 표시
+        myLocation.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 권한 요청
+                // 권한 확인
                 if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                     ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-                    return;
                 }
 
-                LocationListener locationListener = new LocationListener() {
-                    @Override
-                    public void onLocationChanged(@NonNull Location location) {
-                        double lat = location.getLatitude(); // 위도
-                        double lng = location.getLongitude(); // 경도
-
-                        // TMapMarkerItem 객체 생성
-                        TMapMarkerItem markerItem = new TMapMarkerItem();
-
-                        // 마커 좌표 설정
-                        TMapPoint point = new TMapPoint(lat, lng);
-                        markerItem.setTMapPoint(point);
-
-                        // 현재 위치 아이콘 표시
-                        tMapView.setIconVisibility(true);
-
-                        // 지도를 현재 위치로 이동
-                        if (isFirstLocation) {
-                            tMapView.setCenterPoint(lng, lat);
-                            isFirstLocation = false;
-                        }
-
-                        // 내장 마커 이미지로 Bitmap 생성
-                        Bitmap bitmap = markerItem.getIcon();
-
-                        // 마커 이미지 설정
-                        markerItem.setIcon(bitmap);
-
-                        // 기존 마커 삭제
-                        tMapView.removeMarkerItem("marker");
-
-                        // 마커 추가
-                        tMapView.addMarkerItem("marker", markerItem);
-                    }
-
-                    // ... (다른 LocationListener 메서드 생략)
-                };
-
-                String provider = locationManager.getBestProvider(criteria, true);
+                // 현재 위치 가져오기
                 Location location = locationManager.getLastKnownLocation(provider);
 
                 if (location != null) {
-                    locationListener.onLocationChanged(location);
+                    // 현재 위치를 지도에 표시하기 위해 경도와 위도 가져오기
+                    double latitude = location.getLatitude();
+                    double longitude = location.getLongitude();
+
+                    // TMapMarkerItem 객체 생성
+                    TMapMarkerItem markerItem = new TMapMarkerItem();
+
+                    // 마커 좌표 설정
+                    TMapPoint point = new TMapPoint(latitude, longitude);
+                    markerItem.setTMapPoint(point);
+
+                    // 마커 추가
+                    tMapView.addMarkerItem("myLocationMarker", markerItem);
+
+                    // 지도 중심을 현재 위치로 이동
+                    tMapView.setCenterPoint(longitude, latitude);
                 } else {
                     // 현재 위치를 얻어올 수 없는 경우 처리 코드 작성
-                    System.out.println("현재 위치를 얻어올 수 없습니다.");
+                    Toast.makeText(MainActivity.this, "현재 위치를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
                 }
-
+                
                 // 위치 업데이트 요청
-                locationManager.requestLocationUpdates(provider, 1000, 1, locationListener);
+                locationManager.requestLocationUpdates(provider, MIN_TIME_BETWEEN_UPDATES, MIN_DISTANCE_FOR_UPDATES, new LocationListener() {
+                    @Override
+                    public void onLocationChanged(Location location) {
+                        // 새로운 위치 업데이트를 수신하면 이 메서드가 호출됩니다.
+                        updateCurrentLocation(location);
+
+                        // 위치가 변경될 때마다 지도를 업데이트하여 사용자의 실시간 이동을 표현
+                        double latitude = location.getLatitude();
+                        double longitude = location.getLongitude();
+
+                        // 현재 위치로 지도 이동
+                        tMapView.setCenterPoint(longitude, latitude);
+                    }
+
+                    @Override
+                    public void onProviderEnabled(String provider) {
+                        // 위치 제공자가 사용 가능한 경우 호출됩니다.
+                    }
+
+                    @Override
+                    public void onProviderDisabled(String provider) {
+                        // 위치 제공자가 사용 불가능한 경우 호출됩니다.
+                    }
+
+                    @Override
+                    public void onStatusChanged(String provider, int status, Bundle extras) {
+                        // 위치 제공자의 상태가 변경된 경우 호출됩니다.
+                    }
+                });
             }
         });
+
+        sirenButton = findViewById(R.id.siren_button);
+        // 사이렌 소리 재생을 위한 MediaPlayer 초기화
+        mediaPlayer = MediaPlayer.create(this, R.raw.siren);
+
+        // 더블클릭 리스너 설정
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                toggleEmergencySignal(); // 사이렌 소리를 재생하거나 정지합니다.
+                return true;
+            }
+        });
+
+        // 사이렌 버튼에 클릭 리스너 설정
+        sirenButton.setOnTouchListener(new View.OnTouchListener() {
+            @SuppressLint("ClickableViewAccessibility")
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                // GestureDetector로 터치 이벤트 전달
+                gestureDetector.onTouchEvent(event);
+                return true;
+            }
+        });
+
 
 
         etStart = findViewById(R.id.et_start);
@@ -805,5 +854,50 @@ public class MainActivity extends AppCompatActivity {
         marker.setName(name);
         marker.setVisible(TMapMarkerItem.VISIBLE);
         tMapView.addMarkerItem(name, marker);
+    }
+
+    // 사이렌 소리를 재생하거나 정지하는 메서드
+    private void toggleEmergencySignal() {
+        if (!doubleClick) {
+            // 사이렌 소리 재생
+            if (mediaPlayer != null) {
+                mediaPlayer.start();
+                Toast.makeText(MainActivity.this, "사이렌이 울립니다!", Toast.LENGTH_SHORT).show();
+                doubleClick = true;
+            }
+        } else {
+            // 사이렌 소리 정지
+            if (mediaPlayer != null) {
+                mediaPlayer.pause();
+                mediaPlayer.seekTo(0); // 재생 위치를 처음으로 되돌립니다.
+                Toast.makeText(MainActivity.this, "사이렌이 정지되었습니다.", Toast.LENGTH_SHORT).show();
+                doubleClick = false;
+            }
+        }
+    }
+    // updateCurrentLocation 메서드 정의
+    private void updateCurrentLocation(Location location) {
+        // 현재 위치를 받아와서 지도에 표시하는 코드 작성
+        if (location != null) {
+            // 현재 위치를 지도에 표시하기 위해 경도와 위도 가져오기
+            double latitude = location.getLatitude();
+            double longitude = location.getLongitude();
+
+            // TMapMarkerItem 객체 생성
+            TMapMarkerItem markerItem = new TMapMarkerItem();
+
+            // 마커 좌표 설정
+            TMapPoint point = new TMapPoint(latitude, longitude);
+            markerItem.setTMapPoint(point);
+
+            // 마커 추가
+            tMapView.addMarkerItem("myLocationMarker", markerItem);
+
+            // 지도 중심을 현재 위치로 이동
+            tMapView.setCenterPoint(longitude, latitude);
+        } else {
+            // 현재 위치를 얻어올 수 없는 경우 처리 코드 작성
+            Toast.makeText(MainActivity.this, "현재 위치를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
+        }
     }
 }

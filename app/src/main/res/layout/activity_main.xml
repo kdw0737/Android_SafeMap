@@ -112,10 +112,22 @@
             android:drawableLeft="@drawable/ic_my_location"
             android:drawablePadding="8dp"
             android:text="" />
-        <com.skt.Tmap.TMapView
-            android:id="@+id/mapView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
+
+        <!-- 사이렌 모양 동그란 버튼 -->
+        <Button
+            android:id="@+id/siren_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/circle_button"
+            android:drawableLeft="@drawable/bell"
+            android:drawablePadding="8dp"
+            android:text="" />
+
     </FrameLayout>
 
     <!-- 안전경로, 최단경로 버튼 -->
