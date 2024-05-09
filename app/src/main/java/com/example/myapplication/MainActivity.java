@@ -7,6 +7,7 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -17,6 +18,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -186,68 +188,80 @@ public class MainActivity extends AppCompatActivity {
         myLocation.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 권한 확인
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-                }
+                // 위치 제공자 얻기
+                String provider = locationManager.getBestProvider(criteria, true);
 
-                // 현재 위치 가져오기
-                Location location = locationManager.getLastKnownLocation(provider);
+                if (provider != null) {
+                    // 권한 확인
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+                    }
 
-                if (location != null) {
-                    // 현재 위치를 지도에 표시하기 위해 경도와 위도 가져오기
-                    double latitude = location.getLatitude();
-                    double longitude = location.getLongitude();
+                    // 현재 위치 가져오기
+                    Location location = locationManager.getLastKnownLocation(provider);
 
-                    // TMapMarkerItem 객체 생성
-                    TMapMarkerItem markerItem = new TMapMarkerItem();
-
-                    // 마커 좌표 설정
-                    TMapPoint point = new TMapPoint(latitude, longitude);
-                    markerItem.setTMapPoint(point);
-
-                    // 마커 추가
-                    tMapView.addMarkerItem("myLocationMarker", markerItem);
-
-                    // 지도 중심을 현재 위치로 이동
-                    tMapView.setCenterPoint(longitude, latitude);
-                } else {
-                    // 현재 위치를 얻어올 수 없는 경우 처리 코드 작성
-                    Toast.makeText(MainActivity.this, "현재 위치를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
-                }
-                
-                // 위치 업데이트 요청
-                locationManager.requestLocationUpdates(provider, MIN_TIME_BETWEEN_UPDATES, MIN_DISTANCE_FOR_UPDATES, new LocationListener() {
-                    @Override
-                    public void onLocationChanged(Location location) {
-                        // 새로운 위치 업데이트를 수신하면 이 메서드가 호출됩니다.
-                        updateCurrentLocation(location);
-
-                        // 위치가 변경될 때마다 지도를 업데이트하여 사용자의 실시간 이동을 표현
+                    if (location != null) {
+                        // 현재 위치를 지도에 표시하기 위해 경도와 위도 가져오기
                         double latitude = location.getLatitude();
                         double longitude = location.getLongitude();
 
-                        // 현재 위치로 지도 이동
+                        // TMapMarkerItem 객체 생성
+                        TMapMarkerItem markerItem = new TMapMarkerItem();
+
+                        // 마커 좌표 설정
+                        TMapPoint point = new TMapPoint(latitude, longitude);
+                        markerItem.setTMapPoint(point);
+
+                        // 마커 추가
+                        tMapView.addMarkerItem("myLocationMarker", markerItem);
+
+                        // 지도 중심을 현재 위치로 이동
                         tMapView.setCenterPoint(longitude, latitude);
                     }
 
-                    @Override
-                    public void onProviderEnabled(String provider) {
-                        // 위치 제공자가 사용 가능한 경우 호출됩니다.
-                    }
+                    // GPS 상태 확인
+                    if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                        // GPS가 꺼져 있는 경우 알림 다이얼로그 표시
+                        showGPSDisabledDialog();
+                    } else {
+                        // 위치 업데이트 요청
+                        locationManager.requestLocationUpdates(provider, MIN_TIME_BETWEEN_UPDATES, MIN_DISTANCE_FOR_UPDATES, new LocationListener() {
+                            @Override
+                            public void onLocationChanged(Location location) {
+                                // 새로운 위치 업데이트를 수신하면 이 메서드가 호출됩니다.
+                                updateCurrentLocation(location);
 
-                    @Override
-                    public void onProviderDisabled(String provider) {
-                        // 위치 제공자가 사용 불가능한 경우 호출됩니다.
-                    }
+                                // 위치가 변경될 때마다 지도를 업데이트하여 사용자의 실시간 이동을 표현
+                                double latitude = location.getLatitude();
+                                double longitude = location.getLongitude();
 
-                    @Override
-                    public void onStatusChanged(String provider, int status, Bundle extras) {
-                        // 위치 제공자의 상태가 변경된 경우 호출됩니다.
+                                // 현재 위치로 지도 이동
+                                tMapView.setCenterPoint(longitude, latitude);
+                            }
+
+                            @Override
+                            public void onProviderEnabled(String provider) {
+                                // 위치 제공자가 사용 가능한 경우 호출됩니다.
+                            }
+
+                            @Override
+                            public void onProviderDisabled(String provider) {
+                                // 위치 제공자가 사용 불가능한 경우 호출됩니다.
+                            }
+
+                            @Override
+                            public void onStatusChanged(String provider, int status, Bundle extras) {
+                                // 위치 제공자의 상태가 변경된 경우 호출됩니다.
+                            }
+                        });
                     }
-                });
+                } else {
+                    // 위치 제공자가 없는 경우 처리 코드 작성 ( gps 설정 화면으로 이동 )
+                    showGPSDisabledDialog();
+                }
             }
         });
+
 
         sirenButton = findViewById(R.id.siren_button);
         // 사이렌 소리 재생을 위한 MediaPlayer 초기화
@@ -899,5 +913,26 @@ public class MainActivity extends AppCompatActivity {
             // 현재 위치를 얻어올 수 없는 경우 처리 코드 작성
             Toast.makeText(MainActivity.this, "현재 위치를 가져올 수 없습니다.", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // GPS가 꺼져 있는 경우 알림 다이얼로그 표시
+    private void showGPSDisabledDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("GPS가 꺼져 있습니다. GPS를 켜시겠습니까?")
+                .setCancelable(false)
+                .setPositiveButton("예", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        // GPS 설정 화면으로 이동
+                        Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                        startActivity(intent);
+                    }
+                })
+                .setNegativeButton("아니오", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        dialog.cancel();
+                    }
+                });
+        AlertDialog alert = builder.create();
+        alert.show();
     }
 }
