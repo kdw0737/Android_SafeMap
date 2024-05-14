@@ -53,7 +53,9 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
     private static final long MIN_TIME_BETWEEN_UPDATES = 10 * 1000; // 10초
     private static final float MIN_DISTANCE_FOR_UPDATES = 10.0f; // 10미터
+    private boolean isLocationUpdatesEnabled = false; // 위치 업데이트 활성화 여부
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
+    private LocationListener locationListener; // 위치 리스너
     private TMapView tMapView;
     private EditText etStart;
     private EditText etDestination;
@@ -87,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
     private DatabaseReference cctvRef;
     private DatabaseReference bellRef;
     private LocationManager locationManager;
+    private Criteria criteria;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
 
         // LocationManager와 Criteria 객체 생성locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        Criteria criteria = new Criteria();
+        criteria = new Criteria();
 
         Button button = findViewById(R.id.my_location_button); // 버튼 객체 생성
         final int LOCATION_PERMISSION_REQUEST_CODE = 1;
@@ -184,84 +187,13 @@ public class MainActivity extends AppCompatActivity {
         // 위치 제공자 얻기
         String provider = locationManager.getBestProvider(criteria, true);
 
-        // 현재 내 위치 표시
+        // my location 버튼 클릭 이벤트 등록
         myLocation.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 위치 제공자 얻기
-                String provider = locationManager.getBestProvider(criteria, true);
-
-                if (provider != null) {
-                    // 권한 확인
-                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-                    }
-
-                    // 현재 위치 가져오기
-                    Location location = locationManager.getLastKnownLocation(provider);
-
-                    if (location != null) {
-                        // 현재 위치를 지도에 표시하기 위해 경도와 위도 가져오기
-                        double latitude = location.getLatitude();
-                        double longitude = location.getLongitude();
-
-                        // TMapMarkerItem 객체 생성
-                        TMapMarkerItem markerItem = new TMapMarkerItem();
-
-                        // 마커 좌표 설정
-                        TMapPoint point = new TMapPoint(latitude, longitude);
-                        markerItem.setTMapPoint(point);
-
-                        // 마커 추가
-                        tMapView.addMarkerItem("myLocationMarker", markerItem);
-
-                        // 지도 중심을 현재 위치로 이동
-                        tMapView.setCenterPoint(longitude, latitude);
-                    }
-
-                    // GPS 상태 확인
-                    if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                        // GPS가 꺼져 있는 경우 알림 다이얼로그 표시
-                        showGPSDisabledDialog();
-                    } else {
-                        // 위치 업데이트 요청
-                        locationManager.requestLocationUpdates(provider, MIN_TIME_BETWEEN_UPDATES, MIN_DISTANCE_FOR_UPDATES, new LocationListener() {
-                            @Override
-                            public void onLocationChanged(Location location) {
-                                // 새로운 위치 업데이트를 수신하면 이 메서드가 호출됩니다.
-                                updateCurrentLocation(location);
-
-                                // 위치가 변경될 때마다 지도를 업데이트하여 사용자의 실시간 이동을 표현
-                                double latitude = location.getLatitude();
-                                double longitude = location.getLongitude();
-
-                                // 현재 위치로 지도 이동
-                                tMapView.setCenterPoint(longitude, latitude);
-                            }
-
-                            @Override
-                            public void onProviderEnabled(String provider) {
-                                // 위치 제공자가 사용 가능한 경우 호출됩니다.
-                            }
-
-                            @Override
-                            public void onProviderDisabled(String provider) {
-                                // 위치 제공자가 사용 불가능한 경우 호출됩니다.
-                            }
-
-                            @Override
-                            public void onStatusChanged(String provider, int status, Bundle extras) {
-                                // 위치 제공자의 상태가 변경된 경우 호출됩니다.
-                            }
-                        });
-                    }
-                } else {
-                    // 위치 제공자가 없는 경우 처리 코드 작성 ( gps 설정 화면으로 이동 )
-                    showGPSDisabledDialog();
-                }
+                toggleLocationUpdates();
             }
         });
-
 
         sirenButton = findViewById(R.id.siren_button);
         // 사이렌 소리 재생을 위한 MediaPlayer 초기화
@@ -303,6 +235,10 @@ public class MainActivity extends AppCompatActivity {
         btnStartSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!isLocationUpdatesEnabled) {
+                    stopLocationUpdates();
+                }
+
                 String keyword = etStart.getText().toString();
                 // 기존 검색 결과를 모두 지웁니다.
                 poiItems.clear();
@@ -380,6 +316,10 @@ public class MainActivity extends AppCompatActivity {
         btnDestinationSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!isLocationUpdatesEnabled) {
+                    stopLocationUpdates();
+                }
+
                 String keyword = etDestination.getText().toString();
 
                 // 기존 검색 결과를 모두 지웁니다.
@@ -465,6 +405,10 @@ public class MainActivity extends AppCompatActivity {
         btnSearchRoute.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!isLocationUpdatesEnabled) {
+                    stopLocationUpdates();
+                }
+
                 // 경로 탐색 버튼 클릭 시 안전경로 및 최단경로 버튼을 보이도록 설정
                 LinearLayout bottomButtonsLayout = findViewById(R.id.bottom_buttons_layout);
                 bottomButtonsLayout.setVisibility(View.VISIBLE);
@@ -504,6 +448,10 @@ public class MainActivity extends AppCompatActivity {
         safeRouteButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!isLocationUpdatesEnabled) {
+                    stopLocationUpdates();
+                }
+
                 //기존의 경로 및 마커 삭제
                 startM.setVisible(TMapMarkerItem.GONE);
                 endM.setVisible(TMapMarkerItem.GONE);
@@ -539,6 +487,10 @@ public class MainActivity extends AppCompatActivity {
         shortestRouteButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!isLocationUpdatesEnabled) {
+                    stopLocationUpdates();
+                }
+
                 // 최단경로 버튼 클릭 시 안전경로 버튼 선택 해제
                 Button safetyRouteButton = findViewById(R.id.btn_safety_route);
                 safetyRouteButton.setSelected(false);
@@ -934,5 +886,73 @@ public class MainActivity extends AppCompatActivity {
                 });
         AlertDialog alert = builder.create();
         alert.show();
+    }
+
+    private void stopLocationUpdates() {
+        if (locationManager != null && locationListener != null) {
+            // 위치 업데이트 중지
+            locationManager.removeUpdates(locationListener);
+        }
+    }
+
+
+    // 위치 업데이트 시작/중지 토글
+    private void toggleLocationUpdates() {
+        if (isLocationUpdatesEnabled) {
+            stopLocationUpdates();
+            System.out.println("작동 중지");
+        } else {
+            startLocationUpdates();
+        }
+    }
+
+    private void startLocationUpdates() {
+        // 위치 제공자 얻기
+        String provider = locationManager.getBestProvider(criteria, true);
+
+        if (provider != null) {
+            // 권한 확인
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+                return; // 권한이 없으면 이후 동작을 수행하지 않도록 리턴
+            }
+
+            // 위치 리스너 초기화
+            LocationListener locationListener = new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    // 새로운 위치 업데이트를 수신하면 이 메서드가 호출됩니다.
+                    updateCurrentLocation(location);
+
+                    // 위치가 변경될 때마다 지도를 업데이트하여 사용자의 실시간 이동을 표현
+                    double latitude = location.getLatitude();
+                    double longitude = location.getLongitude();
+
+                    // 현재 위치로 지도 이동
+                    tMapView.setCenterPoint(longitude, latitude);
+                }
+
+                @Override
+                public void onProviderEnabled(String provider) {
+                    // 위치 제공자가 사용 가능한 경우 호출됩니다.
+                }
+
+                @Override
+                public void onProviderDisabled(String provider) {
+                    // 위치 제공자가 사용 불가능한 경우 호출됩니다.
+                }
+
+                @Override
+                public void onStatusChanged(String provider, int status, Bundle extras) {
+                    // 위치 제공자의 상태가 변경된 경우 호출됩니다.
+                }
+            };
+
+            // 위치 업데이트 요청
+            locationManager.requestLocationUpdates(provider, MIN_TIME_BETWEEN_UPDATES, MIN_DISTANCE_FOR_UPDATES, locationListener);
+        } else {
+            // 위치 제공자가 없는 경우 처리 코드 작성 ( gps 설정 화면으로 이동 )
+            showGPSDisabledDialog();
+        }
     }
 }

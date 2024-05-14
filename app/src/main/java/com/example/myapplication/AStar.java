@@ -39,7 +39,6 @@ public class AStar {
 
         while (!priorityQueue.isEmpty()) {
             String currentNodeId = priorityQueue.poll();
-            System.out.println("currentNodeId = " + currentNodeId);
 
             visited.add(currentNodeId);
 
@@ -52,7 +51,6 @@ public class AStar {
                 } else {
                     neighborNodeId = neighbor.getStartNodeId(); // 현재 노드가 엣지의 끝 노드인 경우
                 }
-                System.out.println("neighborNodeId = " + neighborNodeId);
 
                 // 이웃 노드가 그래프의 노드에 존재하지 않는 경우, 계산 과정을 스킵
                 if (!graph.nodes.containsKey(neighborNodeId)) {
@@ -61,7 +59,6 @@ public class AStar {
 
                 // 방문하지 않은 이웃 노드에 대해서만 처리
                 if (!visited.contains(neighborNodeId)) {
-                    System.out.println("방문하지 않은 노드 처리 :" + neighborNodeId);
                     // 현재 노드까지의 실제 비용을 계산
                     double actualCost = actualCosts.get(currentNodeId) + neighbor.getLength();
 
@@ -91,7 +88,6 @@ public class AStar {
         List<String> shortestAndSafestPath = new ArrayList<>();
         String currentNode = targetNodeId;
         while (previousNodes.containsKey(currentNode)) {
-            System.out.println("역추적 진행");
             shortestAndSafestPath.add(currentNode);
             currentNode = previousNodes.get(currentNode);
         }
