@@ -99,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
         FrameLayout frameLayoutTmap = (FrameLayout) findViewById(R.id.frameLayoutTmap);
         tMapView = new TMapView(this);
 
-        tMapView.setSKTMapApiKey("ijsBhAoLqVaMPUYRAssJc5S8iwaicpXuatXwmk6f");
+        tMapView.setSKTMapApiKey({APP_KEY});
         tMapView.setLanguage(TMapView.LANGUAGE_KOREAN); // 언어 설정
         frameLayoutTmap.addView(tMapView);
 
